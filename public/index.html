@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Maps Review Checker</title>
+  <meta name="description"
+    content="Production-ready tool to check if Google Maps review links are still publicly available. Integrates with Google Sheets, supports proxies and multi-threading." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --bg-base: #0d0f14;
+      --bg-card: rgba(255, 255, 255, 0.04);
+      --bg-card-hover: rgba(255, 255, 255, 0.07);
+      --bg-input: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 179, 237, 0.6);
+      --text-primary: #eef2ff;
+      --text-secondary: #94a3b8;
+      --text-muted: #475569;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.4);
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --blue: #38bdf8;
+      --purple: #a78bfa;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 4px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+    }
+
+    /* ── Layout ── */
+    .app {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 36px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-logo {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 0 24px var(--accent-glow);
+      flex-shrink: 0;
+    }
+
+    .header-text h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #e0e7ff, #c4b5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
+    }
+
+    .header-text p {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      margin-top: 2px;
+    }
+
+    .status-dot {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    .status-dot .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot .dot.off {
+      background: var(--text-muted);
+      box-shadow: none;
+      animation: none;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    /* ── Grid ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+
+    .card:hover {
+      box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.15), var(--shadow);
+    }
+
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-header-icon {
+      font-size: 1rem;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(99, 102, 241, 0.12);
+      border-radius: 8px;
+    }
+
+    .card-header h2 {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .card-body {
+      padding: 20px;
+    }
+
+    /* ── Form elements ── */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+
+    label span.hint {
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-left: 4px;
+    }
+
+    input[type="text"],
+    select {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    input[type="text"]:focus,
+    select:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.12);
+    }
+
+    input[type="text"]::placeholder {
+      color: var(--text-muted);
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+      cursor: pointer;
+    }
+
+    select option {
+      background: #1e2130;
+    }
+
+    /* Inline row */
+    .row-group {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    /* Range input */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--bg-input);
+      border-radius: 3px;
+      outline: none;
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+      cursor: pointer;
+    }
+
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s;
+      white-space: nowrap;
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      color: #fff;
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(99, 102, 241, 0.55);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--red);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .btn-ghost {
+      background: var(--bg-input);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      font-size: 0.8125rem;
+      padding: 8px 12px;
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+    }
+
+    .btn-warn {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--yellow);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .btn-warn:hover:not(:disabled) {
+      background: rgba(245, 158, 11, 0.2);
+    }
+
+    .btn-sm {
+      padding: 7px 12px;
+      font-size: 0.8rem;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    /* ── Proxy multi-select panel ── */
+    .proxy-panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.18);
+    }
+
+    .proxy-panel-top {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .proxy-panel-top input[type="text"] {
+      flex: 1;
+      padding: 5px 9px;
+      font-size: 0.78rem;
+      border-radius: 6px;
+      height: 30px;
+    }
+
+    .proxy-panel-actions {
+      display: flex;
+      gap: 4px;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .proxy-action-btn {
+      padding: 3px 9px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .proxy-action-btn:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+    }
+
+    .proxy-action-btn.accent {
+      border-color: rgba(99, 102, 241, 0.4);
+      color: #a5b4fc;
+    }
+
+    .proxy-list {
+      max-height: 180px;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+
+    .proxy-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: background 0.12s;
+      user-select: none;
+    }
+
+    .proxy-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .proxy-item input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--accent);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .proxy-item-label {
+      flex: 1;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      overflow: hidden;
+    }
+
+    .proxy-item-label strong {
+      color: var(--text-primary);
+      display: block;
+      font-size: 0.78rem;
+    }
+
+    .proxy-item-label span {
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .proxy-item.checked {
+      background: rgba(99, 102, 241, 0.06);
+    }
+
+    .proxy-item.checked .proxy-item-label strong {
+      color: #c4b5fd;
+    }
+
+    .proxy-panel-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-top: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .proxy-selected-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: rgba(99, 102, 241, 0.12);
+      border-radius: 4px;
+      padding: 2px 8px;
+    }
+
+    .proxy-rotation-toggle {
+      display: flex;
+      gap: 0;
+    }
+
+    .proxy-rotation-toggle button {
+      padding: 3px 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .proxy-rotation-toggle button:first-child {
+      border-radius: 4px 0 0 4px;
+    }
+
+    .proxy-rotation-toggle button:last-child {
+      border-radius: 0 4px 4px 0;
+      border-left: none;
+    }
+
+    .proxy-rotation-toggle button.active {
+      background: rgba(99, 102, 241, 0.18);
+      color: #c4b5fd;
+      border-color: var(--accent);
+    }
+
+    .proxy-empty {
+      text-align: center;
+      padding: 20px 12px;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+
+    /* ── Right column stack ── */
+    .right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Progress section ── */
+    .progress-section {
+      padding: 20px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .progress-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .progress-pct {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .progress-bar-wrap {
+      height: 8px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), #a78bfa);
+      border-radius: 4px;
+      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .progress-bar-fill.animated {
+      background-size: 200% 100%;
+      animation: shimmer 1.5s linear infinite;
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: -200% 0;
+      }
+
+      100% {
+        background-position: 200% 0;
+      }
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    .current-link-box {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: rgba(99, 102, 241, 0.06);
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      border-radius: var(--radius-sm);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .current-link-box strong {
+      color: var(--blue);
+      display: block;
+      font-size: 0.7rem;
+      margin-bottom: 2px;
+    }
+
+    /* ── Stats row ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .stat-box {
+      padding: 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      text-align: center;
+    }
+
+    .stat-box .stat-val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-box .stat-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .stat-box.green .stat-val {
+      color: var(--green);
+    }
+
+    .stat-box.red .stat-val {
+      color: var(--red);
+    }
+
+    .stat-box.yellow .stat-val {
+      color: var(--yellow);
+    }
+
+    /* ── Log panel ── */
+    .log-panel {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 1.8;
+      padding: 16px;
+      height: 340px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.3);
+      border-top: 1px solid var(--border);
+    }
+
+    .log-entry {
+      padding: 1px 0;
+      display: flex;
+      gap: 6px;
+    }
+
+    .log-time {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .log-msg {
+      word-break: break-all;
+    }
+
+    .log-entry.success .log-msg {
+      color: var(--green);
+    }
+
+    .log-entry.dead .log-msg {
+      color: var(--red);
+    }
+
+    .log-entry.warn .log-msg {
+      color: var(--yellow);
+    }
+
+    .log-entry.error .log-msg {
+      color: var(--red);
+    }
+
+    .log-entry.info .log-msg {
+      color: var(--text-secondary);
+    }
+
+    /* ── Log header ── */
+    .log-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .log-header .title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .log-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* ── Toast ── */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1000;
+    }
+
+    .toast {
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      background: rgba(30, 33, 48, 0.95);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow);
+      animation: slide-up 0.25s ease;
+      max-width: 360px;
+    }
+
+    .toast.error {
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .toast.success {
+      border-color: rgba(34, 197, 94, 0.4);
+    }
+
+    @keyframes slide-up {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    /* ── Setup panel ── */
+    .setup-toggle {
+      margin-top: 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+
+    .setup-toggle summary {
+      cursor: pointer;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 4px 0;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .setup-toggle summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .setup-toggle summary::before {
+      content: '▶';
+      font-size: 0.65rem;
+      transition: transform 0.2s;
+    }
+
+    .setup-toggle[open] summary::before {
+      transform: rotate(90deg);
+    }
+
+    .setup-content {
+      margin-top: 12px;
+      padding: 14px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.9;
+    }
+
+    .setup-content ol {
+      padding-left: 20px;
+    }
+
+    .setup-content li {
+      margin-bottom: 4px;
+    }
+
+    .setup-content code {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.76rem;
+      color: var(--purple);
+    }
+
+    /* ── Tag badge ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .badge.running {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+    }
+
+    .badge.idle {
+      background: rgba(148, 163, 184, 0.1);
+      color: var(--text-muted);
+    }
+
+    .badge.done {
+      background: rgba(34, 197, 94, 0.12);
+      color: var(--green);
+    }
+
+    .badge.error {
+      background: rgba(239, 68, 68, 0.12);
+      color: var(--red);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-logo">🐰</div>
+      <div class="header-text">
+        <h1>Google Maps Review Checker</h1>
+        <p>by ig:_eldrie &amp; hihi</p>
+      </div>
+      <div class="status-dot" id="wsStatusDot">
+        <span class="dot off" id="wsDot"></span>
+        <span id="wsStatusText">Connecting…</span>
+      </div>
+    </header>
+
+    <div class="main-grid">
+      <!-- LEFT: Config panel -->
+      <aside>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-icon">📋</div>
+            <h2>Configuration</h2>
+          </div>
+          <div class="card-body">
+
+            <!-- Sheet ID -->
+            <div class="form-group">
+              <label for="sheetId">Google Sheet ID <span class="hint">(from URL)</span></label>
+              <div class="row-group">
+                <input type="text" id="sheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
+                <button class="btn btn-ghost btn-sm" id="loadTabsBtn" onclick="loadTabs()">Load Tabs</button>
+              </div>
+            </div>
+
+            <!-- Tab selector -->
+            <div class="form-group">
+              <label for="tabSelect">Sheet Tab</label>
+              <select id="tabSelect">
+                <option value="">— Load tabs first —</option>
+              </select>
+            </div>
+
+            <!-- Link Column -->
+            <div class="form-group">
+              <label for="linkCol">Link Column <span class="hint">(column with review URLs)</span></label>
+              <div class="row-group">
+                <select id="linkCol">
+                  <!-- A-Z options injected by JS -->
+                </select>
+                <button class="btn btn-ghost btn-sm" onclick="autoDetect()" title="Auto-detect from header">🔍
+                  Auto</button>
+              </div>
+            </div>
+
+            <!-- Status Column -->
+            <div class="form-group">
+              <label for="statusCol">Status Column <span class="hint">(where results are written)</span></label>
+              <select id="statusCol">
+                <!-- A-Z options injected by JS -->
+              </select>
+            </div>
+
+            <!-- Proxy Multi-Select -->
+            <div class="form-group">
+              <label style="display:flex;align-items:center;justify-content:space-between;">
+                <span>Proxies <span class="hint">(check to enable)</span></span>
+                <button class="proxy-action-btn accent" onclick="loadProxyLabels(true)" title="Reload proxies.json"
+                  style="font-size:0.7rem;">↺ Reload</button>
+              </label>
+              <div class="proxy-panel">
+                <!-- Search + no-proxy toggle -->
+                <div class="proxy-panel-top">
+                  <input type="text" id="proxySearch" placeholder="🔍 Search proxies…"
+                    oninput="filterProxies(this.value)" />
+                  <label
+                    style="display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:0.75rem;color:var(--text-secondary);cursor:pointer;">
+                    <input type="checkbox" id="noProxyCheck"
+                      style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer;"
+                      onchange="onNoProxyToggle()" />
+                    No Proxy
+                  </label>
+                </div>
+                <!-- Quick-action bar -->
+                <div class="proxy-panel-actions">
+                  <button class="proxy-action-btn" onclick="selectAllProxies()">Select All</button>
+                  <button class="proxy-action-btn" onclick="selectNoProxies()">None</button>
+                  <button class="proxy-action-btn" onclick="invertProxySelection()">Invert</button>
+                </div>
+                <!-- Scrollable checkbox list -->
+                <div class="proxy-list" id="proxyList">
+                  <div class="proxy-empty" id="proxyEmptyMsg">Click ↺ Reload to load proxies</div>
+                </div>
+                <!-- Footer: count + rotation mode -->
+                <div class="proxy-panel-footer">
+                  <span class="proxy-selected-badge" id="proxySelectedBadge">0 selected</span>
+                  <div class="proxy-rotation-toggle" id="rotationToggle">
+                    <button id="rotRandom" class="active" onclick="setRotation('random')">🎲 Random</button>
+                    <button id="rotRoundRobin" onclick="setRotation('roundrobin')">↻ Round Robin</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Concurrency -->
+            <div class="form-group">
+              <label for="concurrency">
+                Concurrency: <span id="concurrencyVal" style="color:var(--accent);font-weight:700">3</span>
+                <span class="hint">threads</span>
+              </label>
+              <input type="range" id="concurrency" min="1" max="10" value="3"
+                oninput="document.getElementById('concurrencyVal').textContent = this.value; saveSettings();" />
+              <div class="range-labels"><span>1</span><span>Safe: 2–5</span><span>10</span></div>
+            </div>
+
+            <!-- Skip cached -->
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="skipCached" checked
+                  style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;" />
+                Skip already-checked links (cache)
+              </label>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="btn-group">
+              <button class="btn btn-primary" id="startBtn" onclick="startJob()">
+                <span>▶</span> Start Check
+              </button>
+              <button class="btn btn-warn" id="pauseBtn" onclick="togglePause()" disabled>
+                <span id="pauseIcon">⏸</span> <span id="pauseLabel">Pause</span>
+              </button>
+              <button class="btn btn-danger" id="stopBtn" onclick="stopJob()" disabled>
+                <span>⏹</span> Stop
+              </button>
+            </div>
+
+            <!-- Export logs -->
+            <div class="btn-group" style="margin-top:10px;">
+              <button class="btn btn-ghost btn-sm" onclick="exportLogs()">📥 Export Logs</button>
+              <button class="btn btn-ghost btn-sm" onclick="clearLogs()">🗑 Clear Logs</button>
+              <button class="btn btn-ghost btn-sm" onclick="clearCache()">♻️ Clear Cache</button>
+            </div>
+
+            <!-- Setup instructions -->
+            <details class="setup-toggle" id="setupSection">
+              <summary>⚙️ Setup Instructions</summary>
+              <div class="setup-content">
+                <ol>
+                  <li>Go to <a href="https://console.cloud.google.com" target="_blank" style="color:var(--blue)">Google
+                      Cloud Console</a></li>
+                  <li>Enable <strong>Google Sheets API</strong></li>
+                  <li>Create a <strong>Service Account</strong> &amp; download <code>credentials.json</code></li>
+                  <li>Place <code>credentials.json</code> in the project root</li>
+                  <li>Share your Google Sheet with the service account email (Editor)</li>
+                  <li>Add proxies to <code>proxies.json</code> if needed</li>
+                  <li>Run: <code>npm install</code></li>
+                  <li>Run: <code>npx playwright install chromium</code></li>
+                  <li>Run: <code>node server.js</code></li>
+                </ol>
+              </div>
+            </details>
+          </div>
+        </div>
+      </aside>
+
+      <!-- RIGHT: Progress + Logs -->
+      <div class="right-col">
+
+        <!-- Progress card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-icon">📊</div>
+            <h2>Progress</h2>
+            <span class="badge idle" id="jobBadge" style="margin-left:auto;">Idle</span>
+          </div>
+          <div class="progress-section">
+            <div class="progress-header">
+              <span class="progress-label">Links Checked</span>
+              <span class="progress-pct" id="progressPct">0%</span>
+            </div>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar-fill" id="progressBar"></div>
+            </div>
+            <div class="progress-meta">
+              <span id="progressCount">0 / 0</span>
+              <span id="progressEta">—</span>
+            </div>
+
+            <div class="current-link-box" id="currentLinkBox">
+              <strong>CURRENT LINK</strong>
+              <span id="currentLink">Waiting to start…</span>
+            </div>
+
+            <div class="stats-row">
+              <div class="stat-box green">
+                <div class="stat-val" id="statPublic">0</div>
+                <div class="stat-label">✅ Public</div>
+              </div>
+              <div class="stat-box red">
+                <div class="stat-val" id="statDead">0</div>
+                <div class="stat-label">❌ Dead</div>
+              </div>
+              <div class="stat-box yellow">
+                <div class="stat-val" id="statError">0</div>
+                <div class="stat-label">⚠️ Error</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Log card -->
+        <div class="card">
+          <div class="log-header">
+            <span class="title">📜 Live Log</span>
+            <div class="log-actions">
+              <button class="btn btn-ghost btn-sm" onclick="scrollLogToBottom()" title="Scroll to bottom">↓
+                Bottom</button>
+            </div>
+          </div>
+          <div class="log-panel" id="logPanel"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    // ─── State ───────────────────────────────────────────────────────────────────
+    let ws = null;
+    let wsReconnectTimer = null;
+    let paused = false;
+    let jobRunning = false;
+    let startTime = null;
+    let stats = { public: 0, dead: 0, error: 0 };
+
+    const DEFAULT_SETTINGS = {
+      sheetId: '', tab: '', linkCol: 'A', statusCol: 'B',
+      proxyMode: 'none', concurrency: 3, skipCached: true,
+    };
+
+    // ─── Init ────────────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      populateColDropdowns();
+      loadPersistedSettings();
+      loadProxyLabels();
+      connectWS();
+    });
+
+    // ─── Column helpers ──────────────────────────────────────────────────────────
+    function populateColDropdowns() {
+      const letters = [];
+      for (let i = 0; i < 26; i++) letters.push(String.fromCharCode(65 + i));
+      // Extended: AA–AZ
+      for (let i = 0; i < 26; i++) letters.push('A' + String.fromCharCode(65 + i));
+
+      ['linkCol', 'statusCol'].forEach(id => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = '';
+        letters.forEach(l => {
+          const opt = document.createElement('option');
+          opt.value = l; opt.textContent = l;
+          sel.appendChild(opt);
+        });
+      });
+      document.getElementById('linkCol').value = 'A';
+      document.getElementById('statusCol').value = 'B';
+    }
+
+    // ─── WebSocket ───────────────────────────────────────────────────────────────
+    function connectWS() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${proto}://${location.host}`);
+
+      ws.onopen = () => {
+        setWsStatus(true);
+        clearTimeout(wsReconnectTimer);
+      };
+
+      ws.onclose = () => {
+        setWsStatus(false);
+        wsReconnectTimer = setTimeout(connectWS, 3000);
+      };
+
+      ws.onerror = () => ws.close();
+
+      ws.onmessage = (evt) => {
+        const msg = JSON.parse(evt.data);
+        handleServerMsg(msg);
+      };
+    }
+
+    function setWsStatus(connected) {
+      const dot = document.getElementById('wsDot');
+      const txt = document.getElementById('wsStatusText');
+      if (connected) {
+        dot.classList.remove('off');
+        txt.textContent = 'Connected';
+      } else {
+        dot.classList.add('off');
+        txt.textContent = 'Reconnecting…';
+      }
+    }
+
+    function handleServerMsg(msg) {
+      switch (msg.type) {
+        case 'log': appendLog(msg); break;
+        case 'progress': updateProgress(msg); break;
+        case 'current': updateCurrent(msg); break;
+        case 'status': updateStatus(msg); break;
+      }
+    }
+
+    // ─── Log panel ───────────────────────────────────────────────────────────────
+    function appendLog(entry) {
+      const panel = document.getElementById('logPanel');
+      const div = document.createElement('div');
+      div.className = `log-entry ${entry.level || 'info'}`;
+
+      const time = new Date(entry.time).toLocaleTimeString('en-US', { hour12: false });
+      div.innerHTML = `<span class="log-time">${time}</span><span class="log-msg">${escHtml(entry.message)}</span>`;
+      panel.appendChild(div);
+
+      // Count stats
+      if (entry.message.includes('✅')) stats.public++;
+      else if (entry.message.includes('❌')) stats.dead++;
+      else if (entry.message.includes('⚠️')) stats.error++;
+      document.getElementById('statPublic').textContent = stats.public;
+      document.getElementById('statDead').textContent = stats.dead;
+      document.getElementById('statError').textContent = stats.error;
+
+      // Auto scroll if near bottom
+      if (panel.scrollHeight - panel.scrollTop - panel.clientHeight < 80) {
+        panel.scrollTop = panel.scrollHeight;
+      }
+    }
+
+    function scrollLogToBottom() {
+      const panel = document.getElementById('logPanel');
+      panel.scrollTop = panel.scrollHeight;
+    }
+
+    function clearLogs() {
+      document.getElementById('logPanel').innerHTML = '';
+      stats = { public: 0, dead: 0, error: 0 };
+      document.getElementById('statPublic').textContent = '0';
+      document.getElementById('statDead').textContent = '0';
+      document.getElementById('statError').textContent = '0';
+    }
+
+    // ─── Progress ────────────────────────────────────────────────────────────────
+    function updateProgress({ done, total, pct }) {
+      document.getElementById('progressPct').textContent = `${pct}%`;
+      document.getElementById('progressBar').style.width = `${pct}%`;
+      document.getElementById('progressCount').textContent = `${done} / ${total}`;
+
+      if (startTime && done > 0) {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const rate = done / elapsed;
+        const remaining = (total - done) / rate;
+        document.getElementById('progressEta').textContent = `~${formatSeconds(remaining)} remaining`;
+      }
+    }
+
+    function updateCurrent({ url }) {
+      document.getElementById('currentLink').textContent = url || '—';
+    }
+
+    function updateStatus({ running, paused: srv_paused, finished, stopped, error, total, done }) {
+      jobRunning = running;
+
+      const badge = document.getElementById('jobBadge');
+      const startBtn = document.getElementById('startBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const pauseBtn = document.getElementById('pauseBtn');
+      const bar = document.getElementById('progressBar');
+
+      if (running) {
+        badge.className = 'badge running'; badge.textContent = '● Running';
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        pauseBtn.disabled = false;
+        bar.classList.add('animated');
+        if (!startTime) startTime = Date.now();
+      } else {
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        pauseBtn.disabled = true;
+        bar.classList.remove('animated');
+
+        if (finished) { badge.className = 'badge done'; badge.textContent = '✓ Done'; toast('✅ All links checked!', 'success'); }
+        else if (stopped) { badge.className = 'badge idle'; badge.textContent = 'Stopped'; }
+        else if (error) { badge.className = 'badge error'; badge.textContent = 'Error'; toast('❌ ' + error, 'error'); }
+        else { badge.className = 'badge idle'; badge.textContent = 'Idle'; }
+
+        startTime = null;
+      }
+
+      if (srv_paused !== undefined) {
+        paused = srv_paused;
+        document.getElementById('pauseIcon').textContent = paused ? '▶' : '⏸';
+        document.getElementById('pauseLabel').textContent = paused ? 'Resume' : 'Pause';
+      }
+    }
+
+    // ─── API calls ───────────────────────────────────────────────────────────────
+    async function loadTabs() {
+      const sheetId = document.getElementById('sheetId').value.trim();
+      if (!sheetId) return toast('Please enter a Sheet ID', 'error');
+
+      try {
+        const res = await fetch(`/api/sheets/${encodeURIComponent(sheetId)}/tabs`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        const sel = document.getElementById('tabSelect');
+        sel.innerHTML = '<option value="ALL">📋 ALL SHEETS</option>';
+        data.tabs.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.title; opt.textContent = t.title;
+          sel.appendChild(opt);
+        });
+        toast(`Loaded ${data.tabs.length} tabs`, 'success');
+        saveSettings();
+      } catch (e) {
+        toast(`Error: ${e.message}`, 'error');
+      }
+    }
+
+    async function autoDetect() {
+      const sheetId = document.getElementById('sheetId').value.trim();
+      const tab = document.getElementById('tabSelect').value;
+      if (!sheetId || !tab || tab === 'ALL') {
+        return toast('Select a specific tab first', 'error');
+      }
+      try {
+        const res = await fetch(`/api/sheets/${encodeURIComponent(sheetId)}/detect?tab=${encodeURIComponent(tab)}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        if (data.linkCol) document.getElementById('linkCol').value = data.linkCol;
+        if (data.statusCol) document.getElementById('statusCol').value = data.statusCol;
+        toast(`Auto-detected: Link=${data.linkCol || '?'}, Status=${data.statusCol || '?'}`, 'success');
+        saveSettings();
+      } catch (e) {
+        toast(`Auto-detect failed: ${e.message}`, 'error');
+      }
+    }
+
+    // ─── Proxy multi-select state ────────────────────────────────────────────────
+    let _allProxies = [];          // [{id, label, url}, ...]
+    let _selectedProxyIds = new Set(); // IDs of checked proxies
+    let _proxyRotation = 'random'; // 'random' | 'roundrobin'
+    let _savedProxyIds = [];       // restored from localStorage
+
+    async function loadProxyLabels(forceReload = false) {
+      const list = document.getElementById('proxyList');
+      const empty = document.getElementById('proxyEmptyMsg');
+      try {
+        const url = forceReload ? '/api/proxies/reload' : '/api/proxies';
+        const method = forceReload ? 'POST' : 'GET';
+        const res = await fetch(url, { method });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Unknown error');
+        _allProxies = data.proxies;
+        if (_allProxies.length === 0) {
+          list.innerHTML = '';
+          empty.textContent = '⚠️ proxies.json is empty or failed to load. Check server console.';
+          empty.style.display = 'block';
+          list.appendChild(empty);
+          return;
+        }
+        renderProxyList(_allProxies);
+        // Restore persisted selections
+        if (_savedProxyIds.length > 0) {
+          _savedProxyIds.forEach(id => _selectedProxyIds.add(id));
+          _savedProxyIds = [];
+        }
+        syncProxyCheckboxes();
+        if (forceReload) toast(`Loaded ${_allProxies.length} proxies`, 'success');
+      } catch (e) {
+        console.warn('Could not load proxies:', e.message);
+        list.innerHTML = '';
+        empty.textContent = `❌ Failed to load proxies: ${e.message}`;
+        empty.style.display = 'block';
+        list.appendChild(empty);
+        if (forceReload) toast('Failed to load proxies — check proxies.json format', 'error');
+      }
+    }
+
+
+    function renderProxyList(proxies) {
+      const list = document.getElementById('proxyList');
+      const empty = document.getElementById('proxyEmptyMsg');
+      list.innerHTML = '';
+      if (!proxies || proxies.length === 0) {
+        empty.style.display = 'block';
+        list.appendChild(empty);
+        updateProxyBadge();
+        return;
+      }
+      empty.style.display = 'none';
+      proxies.forEach(p => {
+        const item = document.createElement('label');
+        item.className = 'proxy-item' + (_selectedProxyIds.has(p.id) ? ' checked' : '');
+        item.dataset.proxyId = p.id;
+        item.innerHTML = `
+      <input type="checkbox" value="${escHtml(p.id)}"
+        ${_selectedProxyIds.has(p.id) ? 'checked' : ''}
+        onchange="onProxyCheckChange(this)" />
+      <div class="proxy-item-label">
+        <strong>${escHtml(p.label || p.id)}</strong>
+        <span>${escHtml(p.url)}</span>
+      </div>`;
+        list.appendChild(item);
+      });
+      updateProxyBadge();
+    }
+
+    function filterProxies(query) {
+      const q = query.toLowerCase();
+      const filtered = _allProxies.filter(p =>
+        (p.label || p.id).toLowerCase().includes(q) || p.url.toLowerCase().includes(q)
+      );
+      renderProxyList(filtered);
+    }
+
+    function onProxyCheckChange(cb) {
+      const id = cb.value;
+      if (cb.checked) {
+        _selectedProxyIds.add(id);
+        cb.closest('.proxy-item').classList.add('checked');
+      } else {
+        _selectedProxyIds.delete(id);
+        cb.closest('.proxy-item').classList.remove('checked');
+      }
+      // If any proxy selected, uncheck "No Proxy"
+      if (_selectedProxyIds.size > 0) {
+        document.getElementById('noProxyCheck').checked = false;
+      }
+      updateProxyBadge();
+      saveSettings();
+    }
+
+    function onNoProxyToggle() {
+      const noProxy = document.getElementById('noProxyCheck').checked;
+      if (noProxy) {
+        // Uncheck all proxies
+        _selectedProxyIds.clear();
+        syncProxyCheckboxes();
+      }
+      updateProxyBadge();
+      saveSettings();
+    }
+
+    function selectAllProxies() {
+      document.getElementById('noProxyCheck').checked = false;
+      _allProxies.forEach(p => _selectedProxyIds.add(p.id));
+      syncProxyCheckboxes();
+      saveSettings();
+    }
+
+    function selectNoProxies() {
+      _selectedProxyIds.clear();
+      syncProxyCheckboxes();
+      saveSettings();
+    }
+
+    function invertProxySelection() {
+      document.getElementById('noProxyCheck').checked = false;
+      _allProxies.forEach(p => {
+        if (_selectedProxyIds.has(p.id)) _selectedProxyIds.delete(p.id);
+        else _selectedProxyIds.add(p.id);
+      });
+      syncProxyCheckboxes();
+      saveSettings();
+    }
+
+    function syncProxyCheckboxes() {
+      document.querySelectorAll('#proxyList .proxy-item').forEach(item => {
+        const id = item.dataset.proxyId;
+        const cb = item.querySelector('input[type="checkbox"]');
+        if (cb) {
+          cb.checked = _selectedProxyIds.has(id);
+          item.classList.toggle('checked', _selectedProxyIds.has(id));
+        }
+      });
+      updateProxyBadge();
+    }
+
+    function updateProxyBadge() {
+      const badge = document.getElementById('proxySelectedBadge');
+      const noProxy = document.getElementById('noProxyCheck').checked;
+      if (noProxy || _selectedProxyIds.size === 0) {
+        badge.textContent = noProxy ? 'No Proxy' : '0 selected';
+        badge.style.color = 'var(--text-muted)';
+      } else {
+        badge.textContent = `${_selectedProxyIds.size} selected`;
+        badge.style.color = 'var(--accent)';
+      }
+    }
+
+    function setRotation(mode) {
+      _proxyRotation = mode;
+      document.getElementById('rotRandom').classList.toggle('active', mode === 'random');
+      document.getElementById('rotRoundRobin').classList.toggle('active', mode === 'roundrobin');
+      saveSettings();
+    }
+
+    async function startJob() {
+      const sheetId = document.getElementById('sheetId').value.trim();
+      const tab = document.getElementById('tabSelect').value;
+      const linkCol = document.getElementById('linkCol').value;
+      const statusCol = document.getElementById('statusCol').value;
+      const concurrency = parseInt(document.getElementById('concurrency').value, 10);
+      const skipCached = document.getElementById('skipCached').checked;
+      const noProxy = document.getElementById('noProxyCheck').checked;
+      const proxyIds = noProxy ? [] : [..._selectedProxyIds];
+      const proxyRotation = _proxyRotation;
+
+      if (!sheetId) return toast('Please enter a Google Sheet ID', 'error');
+      if (!tab) return toast('Please select a sheet tab', 'error');
+      if (linkCol === statusCol) return toast('Link column and Status column must be different', 'error');
+
+      stats = { public: 0, dead: 0, error: 0 };
+      clearLogs();
+      updateProgress({ done: 0, total: 0, pct: 0 });
+      document.getElementById('currentLink').textContent = 'Starting…';
+      document.getElementById('progressEta').textContent = '—';
+
+      saveSettings();
+
+      try {
+        const res = await fetch('/api/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sheetId, tab, linkCol, statusCol, proxyIds, proxyRotation, concurrency, skipCached }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+      } catch (e) {
+        toast(`Failed to start: ${e.message}`, 'error');
+      }
+    }
+
+    async function stopJob() {
+      await fetch('/api/stop', { method: 'POST' });
+    }
+
+    async function togglePause() {
+      const endpoint = paused ? '/api/resume' : '/api/pause';
+      await fetch(endpoint, { method: 'POST' });
+    }
+
+    async function clearCache() {
+      await fetch('/api/cache/clear', { method: 'POST' });
+      toast('Cache cleared', 'success');
+    }
+
+    function exportLogs() {
+      window.open('/api/logs/export', '_blank');
+    }
+
+    // ─── Settings persistence ─────────────────────────────────────────────────────
+    function saveSettings() {
+      try {
+        const settings = {
+          sheetId: document.getElementById('sheetId').value,
+          tab: document.getElementById('tabSelect').value,
+          linkCol: document.getElementById('linkCol').value,
+          statusCol: document.getElementById('statusCol').value,
+          proxyIds: [..._selectedProxyIds],
+          proxyRotation: _proxyRotation,
+          noProxy: document.getElementById('noProxyCheck').checked,
+          concurrency: document.getElementById('concurrency').value,
+          skipCached: document.getElementById('skipCached').checked,
+        };
+        localStorage.setItem('gmaps_checker_settings', JSON.stringify(settings));
+      } catch (_) { }
+    }
+
+    function loadPersistedSettings() {
+      try {
+        const raw = localStorage.getItem('gmaps_checker_settings');
+        if (!raw) return;
+        const s = JSON.parse(raw);
+
+        if (s.sheetId) document.getElementById('sheetId').value = s.sheetId;
+        if (s.linkCol) document.getElementById('linkCol').value = s.linkCol;
+        if (s.statusCol) document.getElementById('statusCol').value = s.statusCol;
+        if (s.concurrency) {
+          document.getElementById('concurrency').value = s.concurrency;
+          document.getElementById('concurrencyVal').textContent = s.concurrency;
+        }
+        if (s.skipCached !== undefined) document.getElementById('skipCached').checked = s.skipCached;
+        if (s.noProxy) document.getElementById('noProxyCheck').checked = s.noProxy;
+        if (s.proxyRotation) setRotation(s.proxyRotation);
+        // Store IDs to be restored once proxies load
+        if (Array.isArray(s.proxyIds)) _savedProxyIds = s.proxyIds;
+
+        // Reload tabs if we have a sheetId
+        if (s.sheetId && s.tab) {
+          loadTabs().then(() => {
+            if (s.tab) document.getElementById('tabSelect').value = s.tab;
+          }).catch(() => { });
+        }
+      } catch (_) { }
+    }
+
+    // ─── Utilities ───────────────────────────────────────────────────────────────
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function formatSeconds(s) {
+      if (!isFinite(s) || s < 0) return '…';
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+    }
+
+    function toast(msg, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const div = document.createElement('div');
+      div.className = `toast ${type}`;
+      div.textContent = msg;
+      container.appendChild(div);
+      setTimeout(() => div.remove(), 4000);
+    }
+  </script>
+</body>
+
+</html>

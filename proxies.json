@@ -1,0 +1,107 @@
+[
+  {
+    "id": "proxy1",
+    "label": "Proxy 1",
+    "url": "http://127.0.0.1:60000"
+  },
+  {
+    "id": "proxy2",
+    "label": "Proxy 2",
+    "url": "http://127.0.0.1:60001"
+  },
+  {
+    "id": "proxy3",
+    "label": "Proxy 3",
+    "url": "http://127.0.0.1:60002"
+  },
+  {
+    "id": "proxy4",
+    "label": "Proxy 4",
+    "url": "http://127.0.0.1:60003"
+  },
+  {
+    "id": "proxy5",
+    "label": "Proxy 5",
+    "url": "http://127.0.0.1:60004"
+  },
+  {
+    "id": "proxy6",
+    "label": "Proxy 6",
+    "url": "http://127.0.0.1:60005"
+  },
+  {
+    "id": "proxy7",
+    "label": "Proxy 7",
+    "url": "http://127.0.0.1:60006"
+  },
+  {
+    "id": "proxy8",
+    "label": "Proxy 8",
+    "url": "http://127.0.0.1:60007"
+  },
+  {
+    "id": "proxy9",
+    "label": "Proxy 9",
+    "url": "http://127.0.0.1:60008"
+  },
+  {
+    "id": "proxy10",
+    "label": "Proxy 10",
+    "url": "http://127.0.0.1:60009"
+  },
+  {
+    "id": "proxy11",
+    "label": "Proxy 11",
+    "url": "http://127.0.0.1:60010"
+  },
+  {
+    "id": "proxy12",
+    "label": "Proxy 12",
+    "url": "http://127.0.0.1:60011"
+  },
+  {
+    "id": "proxy13",
+    "label": "Proxy 13",
+    "url": "http://127.0.0.1:60012"
+  },
+  {
+    "id": "proxy14",
+    "label": "Proxy 14",
+    "url": "http://127.0.0.1:60013"
+  },
+  {
+    "id": "proxy15",
+    "label": "Proxy 15",
+    "url": "http://127.0.0.1:60014"
+  },
+  {
+    "id": "proxy16",
+    "label": "Proxy 16",
+    "url": "http://127.0.0.1:60015"
+  },
+  {
+    "id": "proxy17",
+    "label": "Proxy 17",
+    "url": "http://127.0.0.1:60016"
+  },
+  {
+    "id": "proxy18",
+    "label": "Proxy 18",
+    "url": "http://127.0.0.1:60017"
+  },
+  {
+    "id": "proxy19",
+    "label": "Proxy 19",
+    "url": "http://127.0.0.1:60018"
+  },
+  {
+    "id": "proxy20",
+    "label": "Proxy 20",
+    "url": "http://127.0.0.1:60019"
+  },
+  {
+    "id": "proxy21",
+    "label": "Proxy 21",
+    "url": "http://127.0.0.1:60020"
+  }
+]
